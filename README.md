@@ -46,13 +46,74 @@ Instead of traditional orchestration via fixed logic, this system uses a smart d
 
 ---
 
-## 🚀 Usage
+# 🚀 Quick Start Guide: Running the AI-Pipeline
+
+This guide provides concise steps to launch the full AI-powered Kafka-based pipeline.
+
+---
+
+## 🛠 Prerequisites
+
+- Docker and Docker Compose installed
+- Python 3.9+ with `venv` (for optional local interaction)
+- SSH setup with GitHub (already configured)
+- Internet connection to pull Python dependencies
+
+---
+
+## 🧠 Pipeline Overview
+
+The pipeline consists of modular AI microservices:
+- `smart-ingestor`: Ingests real-time data
+- `smart-preprocessor`: Prepares and cleans data
+- `smart-ml-preprocessor`: ML-specific preprocessing
+- `smart-model-trainer`: Trains models when needed
+- `smart-ml-forecaster`: Predicts future energy trends
+- `smart-anomaly-detector`: Flags anomalies in energy patterns
+- `smart-alert-engine`: Generates real-time alerts
+- `smart-storage-optimizer`: Optimizes energy storage decisions
+- `smart-grid-rebalancer`: AI-driven grid balancing logic
+- Kafka + Zookeeper for inter-service streaming
+
+---
+## 🔁 How to Run the Pipeline
 
 ```bash
-git clone git@github.com:AI4EU-Graphene/AI-Pipeline-Kafka.git
-cd AI-Pipeline-Kafka
+# Step 1: Navigate to the folder
+cd AI-Pipeline
+
+# Step 2: Start the pipeline
 docker-compose up --build
 ```
+
+> 📝 NOTE: The first run may take some time as it pulls all dependencies.
+
+---
+
+## 🔍 Verifying It Works
+
+To test Kafka is receiving data from the ingestor:
+
+```bash
+docker exec -it kafka-1   kafka-console-consumer --bootstrap-server localhost:9092   --topic raw_energy_data --from-beginning --max-messages 5
+```
+
+To inspect logs of any service:
+
+```bash
+docker logs -f kafka-live-orchestrator-smart-ingestor-1
+```
+
+---
+
+🧠 How the AI-Pipeline Works
+	•	The AI Scheduler Node uses intelligent orchestration to:
+	•	Detect new or updated data streams
+	•	Dynamically decide which smart node to trigger next
+	•	Skip or retrain modules based on performance or context
+	•	Eliminate rigid pipelines or manual orchestration
+
+This AI-first approach ensures adaptive, data-driven flow control in real-time.
 
 ---
 
