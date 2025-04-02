@@ -101,8 +101,8 @@ AI-Pipeline-Kafka/
 
 ## 📣 Contributors
 
-- **@gunx-ai** (Creator, Vision)
-- **ChatGPT** (Architect, Engineer)
+- **VaibhavTechie** (Creator, Vision)
+
 
 ---
 
