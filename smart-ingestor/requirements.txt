@@ -1,0 +1,6 @@
+flask
+pandas
+httpx
+tqdm
+backoff
+kafka-python
