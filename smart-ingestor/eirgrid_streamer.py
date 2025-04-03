@@ -1,38 +1,77 @@
+import asyncio
 import os
+import logging
+from backoff import on_exception, expo
+import httpx
 import pandas as pd
+from httpx import HTTPStatusError
+from tqdm.asyncio import tqdm
+from datetime import datetime
 from kafka import KafkaProducer
 import json
-from async_eirgrid_downloader import main as download_data_main
 
-def collect_csv_paths(base_dir="Downloaded_Data"):
-    paths = []
-    for root, _, files in os.walk(base_dir):
-        for file in files:
-            if file.endswith(".csv"):
-                paths.append(os.path.join(root, file))
-    return paths
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
-def stream_csv_to_kafka(csv_paths, topic="raw_energy_data", kafka_server="kafka:9092"):
-    producer = KafkaProducer(
-        bootstrap_servers=kafka_server,
-        value_serializer=lambda v: json.dumps(v).encode("utf-8")
-    )
+KAFKA_TOPIC = "raw_energy_data"
+KAFKA_SERVER = "kafka:9092"
 
-    for path in csv_paths:
-        try:
-            df = pd.read_csv(path, header=None)
-            for _, row in df.iterrows():
-                producer.send(topic, row.to_dict())
-        except Exception as e:
-            print(f"⚠️ Skipped {path}: {e}")
-    
-    producer.flush()
-    print("✅ Finished streaming data to Kafka.")
+producer = KafkaProducer(
+    bootstrap_servers=KAFKA_SERVER,
+    value_serializer=lambda v: json.dumps(v).encode("utf-8")
+)
 
+@on_exception(expo, HTTPStatusError, max_tries=8)
+async def fetch_data(client, api, timeout=25):
+    try:
+        response = await client.get(api, timeout=timeout)
+        response.raise_for_status()
+        return response.json()["Rows"]
+    except HTTPStatusError as e:
+        logging.error(f"HTTPStatusError for API {api}: {e}")
+        raise
+    except Exception as e:
+        logging.error(f"Unexpected error for API {api}: {e}")
+        raise
+
+async def get_historic_data(client, region="ALL", semaphore: asyncio.Semaphore = None):
+    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    categories = ["demandactual", "generationactual", "windactual", "interconnection", "co2intensity", "co2emission", "SnspALL"]
+    year_range = (24, 25)  # Only for 2024
+
+    for category in tqdm(categories, desc=f"Fetching categories for {region}"):
+        for year in range(*year_range):
+            for month in months:
+                month_idx = months.index(month)
+                next_month = months[0] if month_idx == 11 else months[month_idx + 1]
+                next_year = year + 1 if month_idx == 11 else year
+
+                api = (
+                    f"https://www.smartgriddashboard.com/DashboardService.svc/data?"
+                    f"area={category}&region={region}&"
+                    f"datefrom=01-{month}-20{year}+00%3A00&"
+                    f"dateto=01-{next_month}-20{next_year}+21%3A59"
+                )
+
+                async with semaphore:
+                    try:
+                        data = await fetch_data(client, api)
+                        for record in data:
+                            producer.send(KAFKA_TOPIC, value=record)
+                        logging.info(f"Streamed {len(data)} records from {api}")
+                    except Exception as e:
+                        logging.warning(f"Failed to fetch/process data for {api}: {e}")
+                        continue
+
+async def main():
+    async with httpx.AsyncClient(http2=True) as client:
+        semaphore = asyncio.Semaphore(10)
+        regions = ["ALL", "ROI", "NI"]
+        tasks = [get_historic_data(client, region, semaphore) for region in regions]
+        await asyncio.gather(*tasks)
+
+
+def download_data_main():
+    asyncio.run(main())
 def run():
-    print("📥 Starting EirGrid data download...")
     download_data_main()
-    print("📦 Collecting CSV files...")
-    csv_paths = collect_csv_paths()
-    print(f"📤 Streaming {len(csv_paths)} CSV files to Kafka...")
-    stream_csv_to_kafka(csv_paths)

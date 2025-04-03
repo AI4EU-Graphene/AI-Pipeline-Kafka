@@ -1,37 +1,45 @@
 from flask import Flask, jsonify, request
-import random
 import logging
-
+from kafka import KafkaConsumer
+import threading
+import json
+import time
+time.sleep(30)
 app = Flask(__name__)
+
+# Configure logging
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("smart-grid-rebalancer")
+
+KAFKA_TOPIC = "alert_signals"
+KAFKA_BOOTSTRAP_SERVERS = "kafka:9092"
+
+def consume_data():
+    consumer = KafkaConsumer(
+        KAFKA_TOPIC,
+        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+        value_deserializer=lambda m: json.loads(m.decode("utf-8")),
+        group_id="grid-rebalancer-group"
+    )
+    for message in consumer:
+        data = message.value
+        logger.info("smart-grid-rebalancer received signal: %s", data)
+        logger.info("Executing rebalancing strategy...")
+
+@app.route("/health", methods=["GET"])
+def health_check():
+    return jsonify({"status": "ok"})
 
 @app.route("/", methods=["GET"])
-def health_check():
-    return jsonify({"status": "Smart Grid Rebalancer running"}), 200
+def home():
+    return jsonify({"status": "smart-grid-rebalancer service running"})
 
-@app.route("/rebalance", methods=["POST"])
-def rebalance():
+@app.route("/process", methods=["POST"])
+def process_data():
     data = request.json
-    region_loads = data.get("region_loads", {})
-    
-    if not region_loads:
-        return jsonify({"error": "No region loads provided"}), 400
-
-    # Placeholder AI logic: flag regions above threshold and suggest shifts
-    threshold = 75  # hypothetical threshold %
-    suggestions = []
-
-    for region, load in region_loads.items():
-        if load > threshold:
-            target_region = random.choice([r for r in region_loads if r != region])
-            suggestions.append({
-                "from": region,
-                "to": target_region,
-                "suggested_transfer_percent": round((load - threshold) * 0.8, 2)
-            })
-
-    logging.info("Rebalance suggestions: %s", suggestions)
-    return jsonify({"rebalance_suggestions": suggestions}), 200
+    logger.info("smart-grid-rebalancer received data: %s", data)
+    return jsonify({"status": "processed", "node": "smart-grid-rebalancer"})
 
 if __name__ == "__main__":
+    threading.Thread(target=consume_data, daemon=True).start()
     app.run(host="0.0.0.0", port=5000)

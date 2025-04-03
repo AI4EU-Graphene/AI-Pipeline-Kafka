@@ -1,19 +1,36 @@
-from flask import Flask
-from eirgrid_streamer import run
+from flask import Flask, jsonify, request
+import logging
+from eirgrid_streamer import download_data_main  # Ensure this function is defined properly
 
 app = Flask(__name__)
 
-@app.route("/")
-def health_check():
-    return "✅ Smart Ingestor is live!"
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("smart-ingestor")
 
-@app.route("/trigger", methods=["POST"])
-def trigger_stream():
+@app.route("/health", methods=["GET"])
+def health_check():
+    return jsonify({"status": "ok"})
+
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({"status": "smart-ingestor service running"})
+
+@app.route("/process", methods=["POST"])
+def process_data():
+    data = request.json
+    logger.info("smart-ingestor received data: %s", data)
+    return jsonify({"status": "processed", "node": "smart-ingestor"})
+
+@app.route("/stream", methods=["GET"])
+def stream_data():
+    logger.info("Streaming process started via /stream endpoint")
     try:
-        run()
-        return "✅ Data ingestion and streaming started.", 200
+        download_data_main()
+        return jsonify({"status": "Streaming started"})
     except Exception as e:
-        return f"❌ Error during ingestion: {str(e)}", 500
+        logger.error(f"Streaming failed: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)

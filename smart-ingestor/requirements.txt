@@ -1,6 +1,6 @@
 flask
+httpx[http2]
 pandas
-httpx
 tqdm
-backoff
 kafka-python
+backoff

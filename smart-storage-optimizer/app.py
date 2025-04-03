@@ -1,50 +1,45 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
+import logging
 from kafka import KafkaConsumer
-import json
 import threading
+import json
 import time
-
+time.sleep(30)
 app = Flask(__name__)
 
-# Simulated storage levels
-storage_state = {
-    "level": 50.0,  # in %
-    "charging": False
-}
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("smart-storage-optimizer")
 
-# Optimization logic (placeholder for ML)
-def optimize_storage():
+KAFKA_TOPIC = "alert_signals"
+KAFKA_BOOTSTRAP_SERVERS = "kafka:9092"
+
+def consume_data():
     consumer = KafkaConsumer(
-        'forecast_output',
-        bootstrap_servers='kafka:9092',
-        value_deserializer=lambda m: json.loads(m.decode('utf-8')),
-        auto_offset_reset='latest',
-        group_id='storage-optimizer-group'
+        KAFKA_TOPIC,
+        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+        value_deserializer=lambda m: json.loads(m.decode("utf-8")),
+        group_id="storage-optimizer-group"
     )
-    
     for message in consumer:
-        forecast = message.value.get("forecast", 0)
-        current_storage = storage_state["level"]
+        data = message.value
+        logger.info("smart-storage-optimizer received signal: %s", data)
+        logger.info("Optimizing battery storage system...")
 
-        # Simple logic: Charge if forecast low, discharge if high
-        if forecast < 50 and current_storage < 80:
-            storage_state["level"] += 2  # charge
-            storage_state["charging"] = True
-        elif forecast >= 50 and current_storage > 20:
-            storage_state["level"] -= 2  # discharge
-            storage_state["charging"] = False
-        else:
-            storage_state["charging"] = False
+@app.route("/health", methods=["GET"])
+def health_check():
+    return jsonify({"status": "ok"})
 
-        print(f"Updated storage: {storage_state}")
-        time.sleep(2)
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({"status": "smart-storage-optimizer service running"})
 
-# Background thread
-threading.Thread(target=optimize_storage, daemon=True).start()
-
-@app.route("/")
-def status():
-    return jsonify(storage_state)
+@app.route("/process", methods=["POST"])
+def process_data():
+    data = request.json
+    logger.info("smart-storage-optimizer received data: %s", data)
+    return jsonify({"status": "processed", "node": "smart-storage-optimizer"})
 
 if __name__ == "__main__":
+    threading.Thread(target=consume_data, daemon=True).start()
     app.run(host="0.0.0.0", port=5000)

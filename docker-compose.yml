@@ -134,3 +134,6 @@ services:
       - kafka-network
     depends_on:
       - kafka
+networks:
+  kafka-network:
+    driver: bridge
