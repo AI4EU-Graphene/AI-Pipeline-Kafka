@@ -163,6 +163,7 @@ AI-Pipeline-Kafka/
 ## 📣 Contributors
 
 - **VaibhavTechie** (Creator, Vision)
+- **Abhishek Tomar** (Creator, Designing, and testing)
 
 
 ---
